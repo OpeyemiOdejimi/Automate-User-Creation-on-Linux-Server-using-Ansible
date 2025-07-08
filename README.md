@@ -1,116 +1,109 @@
-# Backup and Restore Files on a Linux Server using Ansible
+# Monitor Linux Server using Prometheus Node Exporter
 
 ## Introduction
-Data backup and restoration are essential practices for ensuring data safety and continuity in Linux server management. Ansible, an automation tool, simplifies these tasks by providing a scalable and repeatable solution. This project will guide you through creating Ansible playbooks to automate the backup and restore process for files on a Linux server.
+Monitoring a Linux server is essential for ensuring system health and performance. Prometheus Node Exporter is a powerful tool that collects hardware and operating system metrics, providing deep insights into your server's state per time. This project will guide you through installing and configuring Prometheus Node Exporter on a Linux server and monitoring it with Prometheus.
 
 ## Objectives
-* Understand the basics of Ansible and its role in automation.
-* Set up an Ansible environment for managing Linux servers.
-* Create a playbook to back up files to a remote or local directory.
-* Develop a playbook to restore files from a backup.
-* Test and verify the backup and restore processes.
+* Install and configure Prometheus Node Exporter on a Linux server.
+* Integrate Node Exporter with Prometheus for metric collection.
+* Explore system metrics collected by Node Exporter.
+* Set up basic queries in Prometheus for real-time monitoring.
+* Optionally configure alerts for key metrics.
 ## Prerequisites
-**Linux Servers:** At least one server to act as the target machine and an optional control machine for Ansible.
-**Ansible Installed:** Ansible installed on the control machine. (Refer to the Ansible installation guide to install it if not already installed.)
-**SSH Access:** SSH access between the control machine and target servers with public key authentication.
-**Tools:** A text editor to create and edit Ansible playbooks.
+**Linux Server:** A running Linux server with sudo privileges.
+**Prometheus Instance:** A working Prometheus setup (local or remote).
+**Network Access:** Ensure Prometheus can connect to the Linux server on port 9100.
+**Tools:** Terminal access to the Linux server, Prometheus UI access, and a text editor for authoring configuration files.
 
 Estimated Time
-2-3 hours
+1-2 hours
 
 ## Tasks Outline
-* Install and configure Ansible on the control machine.
-* Set up an inventory file for the target Linux server.
-* Create an Ansible playbook to back up files.
-* Create an Ansible playbook to restore files from a backup.
-* Test the backup and restore functionality.
+* Install Prometheus Node Exporter on the Linux server.
+* Start and enable Node Exporter as a service.
+* Configure Prometheus to scrape metrics from Node Exporter.
+* Verify and query Node Exporter metrics in Prometheus.
+* Explore and analyze the collected metrics on the Prometheus UI.
 ## Project Tasks
-**Task 1** - Install and Configure Ansible
-Install Ansible on the control machine (Ubuntu example):
+**Task 1** - Install Prometheus Node Exporter
+Download the latest Node Exporter binary from the Prometheus GitHub releases page:
 ```
-sudo apt update
-sudo apt install ansible -y
+curl -LO https://github.com/prometheus/node_exporter/releases/latest/download/node_exporter-linux-amd64.tar.gz
 ```
-Verify the installation:
+Extract the downloaded tarball:
 ```
-ansible --version
+tar -xvf node_exporter-linux-amd64.tar.gz
 ```
-Set up SSH key-based authentication between the control machine and target server:
+Move the binary to a directory in your PATH:
 ```
-ssh-keygen -t rsa
-ssh-copy-id user@<target-server-ip>
+sudo mv node_exporter-linux-amd64/node_exporter /usr/local/bin/
 ```
-**Task 2** - Set Up the Ansible Inventory File
-Create an inventory file to define the target server:
+**Task 2** - Start and Enable Node Exporter as a Service
+Create a systemd service file for Node Exporter by running the command below:
 ```
-nano inventory.ini
+sudo nano /etc/systemd/system/node_exporter.service
 ```
-Add the target server details:
+Add the following content to the file:
 ```
-[linux_servers]
-target ansible_host=<target-server-ip> ansible_user=<user>
+[Unit]
+Description=Prometheus Node Exporter
+After=network.target
+
+[Service]
+User=nobody
+ExecStart=/usr/local/bin/node_exporter
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
 ```
-**Task 3** - Create an Ansible Playbook to Back Up Files
-Create a playbook file for backup:
+Reload systemd and start the Node Exporter service using the following commands:
+```
+sudo systemctl daemon-reload
+sudo systemctl start node_exporter
+sudo systemctl enable node_exporter
+```
+Verify that Node Exporter is running with this command:
+```
+sudo systemctl status node_exporter
+```
+Confirm Node Exporter is accessible by visiting http://<your-server-ip>:9100/metrics in a web browser. If you are using your computer, <your-server-ip> is localhost
+
+**Task 3** - Configure Prometheus to Scrape Metrics from Node Exporter
+Open the Prometheus configuration file (prometheus.yml):
+```
+sudo nano /etc/prometheus/prometheus.yml
+```
+Add a new scrape job for Node Exporter:
 
 ```
-nano backup.yml
+scrape_configs:
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['<your-server-ip>:9100']
 ```
-Add the following playbook content:
+Save the file and restart Prometheus to apply the changes:
 ```
-- name: Backup files on the server
-  hosts: linux_servers
-  tasks:
-    - name: Create backup directory
-      file:
-        path: /backup
-        state: directory
-        mode: '0755'
+sudo systemctl restart prometheus
+```
+**Task 4** - Verify and Query Node Exporter Metrics in Prometheus
+1. Access the Prometheus web interface (e.g., http://<prometheus-server-ip>:9090).
 
-    - name: Copy files to backup directory
-      copy:
-        src: /path/to/files
-        dest: /backup/
-        remote_src: yes
-```
-Replace /path/to/files with the path of the files you want to back up.
+2. Run a test query to verify Node Exporter metrics:
 
-**Task 4** - Create an Ansible Playbook to Restore Files
-Create a playbook file for restoration:
-```
-nano restore.yml
-```
-Add the following playbook content:
-```
-- name: Restore files from backup
-  hosts: linux_servers
-  tasks:
-    - name: Copy files back to original location
-      copy:
-        src: /backup/
-        dest: /path/to/files
-        remote_src: yes
-```
-Replace /path/to/files with the original file location.
+* Example: node_cpu_seconds_total to view CPU usage.
+3. Check the "Targets" page in Prometheus to confirm the Node Exporter target is listed and "UP."
 
-**Task 5**- Test the Backup and Restore Functionality
-Run the backup playbook:
+**Task 5** - Explore and Analyze Metrics
+1. Use the Prometheus query interface to explore key Node Exporter metrics:
 
-```
-ansible-playbook -i inventory.ini backup.yml
-```
-Verify the backup directory and files on the target server:
-```
-ls /backup
-```
-Run the restore playbook:
+* node_memory_MemAvailable_bytes for Available Memory.
+* node_filesystem_avail_bytes for Available Disk Space.
+* node_network_receive_bytes_total: Network Bytes Received.
+2. Create basic time-series graphs using Prometheus expressions (PromQL):
 
-```
-ansible-playbook -i inventory.ini restore.yml
-```
-Verify the restored files in the original location on the target server:
-```
-ls /path/to/files
-```
-### Conclusion
-This project introduced you to automating file backup and restoration on a Linux server using Ansible. You set up an Ansible environment, created playbooks for backup and restoration, and verified the process. With these skills, you can extend the playbooks to include more servers, schedule regular backups, or integrate advanced options like compression or encryption
+* Example: rate(node_cpu_seconds_total[5m]) to analyze CPU usage over the last 5 minutes.
+3. Optionally, set up alert rules for critical metrics like high CPU usage or low disk space.
+
+## Conclusion
+In this project, you installed and configured Prometheus Node Exporter on a Linux server, integrated it with Prometheus, and explored collected metrics. These skills provide a strong foundation for monitoring server health and performance, and you can now extend this setup by adding advanced visualization tool like Grafana.
