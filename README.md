@@ -1,107 +1,121 @@
-# Setting-up-Ansible-on-a-Linux-Server
+# Automate User Creation on Linux Server using Ansible
 
 ## Introduction
-Ansible is a powerful automation tool that simplifies the management of IT infrastructure. Setting up Ansible on a Linux server is the first step toward leveraging its capabilities. This project will guide you through installing and configuring Ansible on a Linux server, allowing you to automate tasks and manage servers effectively.
+Managing user accounts is a common administrative task for Linux servers. Manually creating and managing user accounts can become tedious, especially on multiple servers. Ansible simplifies this process by automating user creation with playbooks. This project will guide you in creating an Ansible playbook to automate user creation on a Linux server.
 
 ## Objectives
-* Understand what Ansible is and how it works.
-* Install and configure Ansible on a Linux control node.
-* Set up SSH key-based authentication for target nodes.
-* Create an Ansible inventory file.
-* Verify Ansible setup by running basic commands.
-  
-**Prerequisites**
-**Linux Machine:** A Linux server or virtual machine to act as the control node.
-**Target Machine(s):** At least one additional Linux server or virtual machine for Ansible to manage.
-**SSH Access:** Access to target nodes with SSH.
-**Tools:** Basic knowledge of the Linux command line and a text editor.
+* Understand the basics of Ansible and its automation capabilities.
+* Set up an Ansible environment to manage Linux servers.
+* Create an Ansible playbook to automate user creation.
+* Configure additional settings like home directory, groups, and SSH access.
+* Verify the user creation process and test access.
+## Prerequisites
+**Linux Servers:** At least one Linux server to act as the target machine and an optional control machine for Ansible.
+**Ansible Installed:** Ansible installed on the control machine. (Refer to the Ansible installation guide if you don't have Ansible already installed.)
+**SSH Access:** SSH access between the control machine and target servers with public key authentication.
+**Tools:** A text editor to create and edit Ansible playbooks.
 
-Estimated Time
-1-2 hours
+Estimated Time: 1-2 hours.
 
 ## Tasks Outline
-* Install Ansible on the control node.
-* Configure SSH key-based authentication.
-* Create an inventory file for target machine(s).
-* Test Ansible connectivity to target machine(s).
-* Run a simple Ansible ad-hoc command.
-  
+* Install and configure Ansible on the control machine.
+* Set up an inventory file for the target Linux server.
+* Create an Ansible playbook to automate user creation.
+* Configure additional user settings like groups and SSH access.
+* Verify user creation and test login.
+
 ## Project Tasks
-**Task 1** - Install Ansible on the Control Node
-Update the package repository
+**Task 1** - Install and Configure Ansible
+Install Ansible on the control machine (Ubuntu example):
 ```
 sudo apt update
-```
-Install Ansible:
-```
 sudo apt install ansible -y
 ```
 Verify the installation:
-
 ```
 ansible --version
 ```
-The output should display the installed Ansible version like this
-
-**Task 2** - Configure SSH Key-Based Authentication
-Generate an SSH key pair on the control node:
-
-
+Set up SSH key-based authentication between the control machine and target server:
 ```
 ssh-keygen -t rsa
-```
-Press Enter to accept the default path and passphrase.
-
-Copy the public key to the target machine(s):
-```
 ssh-copy-id user@<target-server-ip>
 ```
-Test SSH access without a password:
-
-```
-ssh user@<target-server-ip>
-```
-You have now successfully configured a passwordless SSH access.
-
-**Task 3** - Create an Inventory File
-Create a directory for Ansible configuration:
-
-
-```
-mkdir ~/ansible
-cd ~/ansible
-```
-Create an inventory file:
+**Task 2** - Set Up the Ansible Inventory File
+Create an inventory file to define the target server:
 ```
 nano inventory.ini
 ```
-Add target machine details to the inventory:
-
+Add the target server details:
 ```
 [linux_servers]
-target1 ansible_host=<target1-ip> ansible_user=<user>
-target2 ansible_host=<target2-ip> ansible_user=<user>
+target ansible_host=<target-server-ip> ansible_user=<user>
 ```
-Save and close the file.
-
-**Task 4** - Test Ansible Connectivity
-Test Ansible connectivity to the target machines:
+**Task 3** - Create an Ansible Playbook to Automate User Creation
+Create a playbook file for user creation:
 
 ```
-ansible -i inventory.ini linux_servers -m ping
+nano create_users.yml
 ```
-The output should show a pong response from each target machine.
+Add the following playbook content:
+```
+- name: Automate user creation
+  hosts: linux_servers
+  become: yes
+  tasks:
+    - name: Create a new user
+      user:
+        name: "{"{ item.username "}}"
+        state: present
+        shell: /bin/bash
+        create_home: yes
+      with_items:
+        - {" username: \"user1\" "}
+        - {" username: \"user2\" "}
+```
+**Task 4:** Configure Additional User Settings
+Update the playbook to include group and SSH key configuration:
+```
+- name: Automate user creation
+  hosts: linux_servers
+  become: yes
+  tasks:
+    - name: Create a new user with additional settings
+      user:
+        name: "{"{ item.username "}}"
+        state: present
+        shell: /bin/bash
+        create_home: yes
+        groups: "{"{ item.groups "}}"
+      with_items:
+        - {" username: \"user1\", groups: \"sudo\" "}
+        - {" username: \"user2\", groups: \"docker\" "}
 
-**Task 5** - Run a Simple Ansible Ad-Hoc Command
-Run a command to check the uptime of target machines:
+    - name: Add SSH key for the users
+      authorized_key:
+        user: "{"{ item.username "}}"
+        state: present
+        key: "{"{ lookup('file', item.ssh_key) "}}"
+      with_items:
+        - {" username: \"user1\", ssh_key: \"/path/to/user1.pub\" "}
+        - {" username: \"user2\", ssh_key: \"/path/to/user2.pub\" "}
 ```
-ansible -i inventory.ini linux_servers -m command -a "uptime"
+Replace /path/to/user1.pub and /path/to/user2.pub with the paths to the public SSH keys for each user.
+
+**Task 5** - Verify User Creation and Test Login
+Run the playbook to create users:
 ```
-Run a command to check disk usage:
-``
-ansible -i inventory.ini linux_servers -m shell -a "df -h"
+ansible-playbook -i inventory.ini create_users.yml
 ```
-Observe the outputs to confirm successful execution.
+Verify the users were created on the target server:
+```
+cat /etc/passwd
+ls /home
+```
+Test SSH access for the newly created users:
+```
+ssh user1@<target-server-ip>
+ssh user2@<target-server-ip>
+```
 
 ### Conclusion
-This project demonstrated how to set up Ansible on a Linux server and configure it to manage target machines. You installed Ansible, configured SSH access, created an inventory file, and verified connectivity using ad-hoc commands. With this foundation, you're now prepared to explore more advanced Ansible functionalities like writing playbooks and managing complex infrastructures.
+In this project, you automated the creation of user accounts on a Linux server using Ansible. You learned how to write an Ansible playbook for user creation, configure additional settings like groups and SSH access, and verify the process. With these skills, you can manage user accounts efficiently across multiple servers and extend the playbook for advanced configurations like password policies and user deletion.
