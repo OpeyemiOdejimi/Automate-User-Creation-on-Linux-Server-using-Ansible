@@ -1,26 +1,29 @@
-# Deploy and Configure Nginx Web Server using Ansible
+# Backup and Restore Files on a Linux Server using Ansible
+
 ## Introduction
-Nginx is a powerful and widely used web server known for its performance and flexibility. Deploying and configuring Nginx manually on multiple servers can be time-consuming, but with Ansible, this process becomes automated and efficient. This project will teach you how to use Ansible to deploy and configure an Nginx web server on a Linux machine.
+Data backup and restoration are essential practices for ensuring data safety and continuity in Linux server management. Ansible, an automation tool, simplifies these tasks by providing a scalable and repeatable solution. This project will guide you through creating Ansible playbooks to automate the backup and restore process for files on a Linux server.
 
 ## Objectives
-* Understand how Ansible simplifies the deployment and configuration of applications.
+* Understand the basics of Ansible and its role in automation.
 * Set up an Ansible environment for managing Linux servers.
-* Create and execute an Ansible playbook to install Nginx.
-* Configure a basic Nginx website using Ansible.
-* Verify the Nginx deployment.
+* Create a playbook to back up files to a remote or local directory.
+* Develop a playbook to restore files from a backup.
+* Test and verify the backup and restore processes.
 ## Prerequisites
 **Linux Servers:** At least one server to act as the target machine and an optional control machine for Ansible.
-**Ansible Installed:** Ansible installed on the control machine. (Refer to the Ansible installation guide if needed.)
+**Ansible Installed:** Ansible installed on the control machine. (Refer to the Ansible installation guide to install it if not already installed.)
 **SSH Access:** SSH access between the control machine and target servers with public key authentication.
 **Tools:** A text editor to create and edit Ansible playbooks.
 
-Estimated Time: 2-3 hours.
+Estimated Time
+2-3 hours
+
 ## Tasks Outline
 * Install and configure Ansible on the control machine.
 * Set up an inventory file for the target Linux server.
-* Create an Ansible playbook to install Nginx.
-* Configure a custom Nginx website using Ansible.
-* Verify the Nginx deployment and access the website.
+* Create an Ansible playbook to back up files.
+* Create an Ansible playbook to restore files from a backup.
+* Test the backup and restore functionality.
 ## Project Tasks
 **Task 1** - Install and Configure Ansible
 Install Ansible on the control machine (Ubuntu example):
@@ -44,99 +47,70 @@ nano inventory.ini
 ```
 Add the target server details:
 ```
-[web_servers]
+[linux_servers]
 target ansible_host=<target-server-ip> ansible_user=<user>
 ```
-**Task 3** - Create an Ansible Playbook to Install Nginx
-Create a playbook file for installing Nginx:
+**Task 3** - Create an Ansible Playbook to Back Up Files
+Create a playbook file for backup:
+
 ```
-nano install_nginx.yml
+nano backup.yml
 ```
 Add the following playbook content:
 ```
-- name: Install Nginx on the server
-  hosts: web_servers
-  become: yes
+- name: Backup files on the server
+  hosts: linux_servers
   tasks:
-    - name: Install Nginx
-      apt:
-        name: nginx
-        state: present
-        update_cache: yes
-
-    - name: Ensure Nginx is running
-      service:
-        name: nginx
-        state: started
-        enabled: yes
-```
-Save the file.
-
-**Task 4** - Configure a Custom Nginx Website Using Ansible
-Create a playbook for Nginx website configuration:
-```
-nano configure_nginx.yml
-```
-Add the following playbook content:
-
-```
-- name: Configure Nginx website
-  hosts: web_servers
-  become: yes
-  tasks:
-    - name: Create website root directory
+    - name: Create backup directory
       file:
-        path: /var/www/mywebsite
+        path: /backup
         state: directory
         mode: '0755'
 
-    - name: Deploy HTML content
+    - name: Copy files to backup directory
       copy:
-        content: |
-          <html>
-          <head><title>Welcome to My Website</title></head>
-          <body>
-          <h1>Hello from Nginx!</h1>
-          </body>
-          </html>
-        dest: /var/www/mywebsite/index.html
+        src: /path/to/files
+        dest: /backup/
+        remote_src: yes
+```
+Replace /path/to/files with the path of the files you want to back up.
 
-    - name: Configure Nginx server block
+**Task 4** - Create an Ansible Playbook to Restore Files
+Create a playbook file for restoration:
+```
+nano restore.yml
+```
+Add the following playbook content:
+```
+- name: Restore files from backup
+  hosts: linux_servers
+  tasks:
+    - name: Copy files back to original location
       copy:
-        content: |
-          server {"\n                 listen 80;\n                 server_name _;\n                 root /var/www/mywebsite;\n                 index index.html;\n                 location / {\n                     try_files $uri $uri/ =404;\n                 "}
-          }
-        dest: /etc/nginx/sites-available/mywebsite
-
-    - name: Enable the Nginx server block
-      file:
-        src: /etc/nginx/sites-available/mywebsite
-        dest: /etc/nginx/sites-enabled/mywebsite
-        state: link
-
-    - name: Remove default Nginx server block
-      file:
-        path: /etc/nginx/sites-enabled/default
-        state: absent
-
-    - name: Reload Nginx
-      service:
-        name: nginx
-        state: reloaded
+        src: /backup/
+        dest: /path/to/files
+        remote_src: yes
 ```
-**Task 5** - Verify the Nginx Deployment
-Run the playbooks to install and configure Nginx:
+Replace /path/to/files with the original file location.
 
+**Task 5**- Test the Backup and Restore Functionality
+Run the backup playbook:
 
 ```
-ansible-playbook -i inventory.ini install_nginx.yml
-ansible-playbook -i inventory.ini configure_nginx.yml
+ansible-playbook -i inventory.ini backup.yml
 ```
-Verify Nginx is running on the target server:
+Verify the backup directory and files on the target server:
 ```
-curl http://<target-server-ip>
+ls /backup
 ```
-Open the target server's IP address in a web browser to access the custom website.
+Run the restore playbook:
 
+```
+ansible-playbook -i inventory.ini restore.yml
+```
+Verify the restored files in the original location on the target server:
+```
+ls /path/to/files
+```
 ### Conclusion
-In this project, you used Ansible to automate the deployment and configuration of the Nginx web server on a Linux machine. You created reusable playbooks for installing Nginx and deploying a custom website. With these skills, you 
+This project introduced you to automating file backup and restoration on a Linux server using Ansible. You set up an Ansible environment, created playbooks for backup and restoration, and verified the process. With these skills, you can extend the playbooks to include more servers, schedule regular backups, or integrate advanced options like compression or encryption.
