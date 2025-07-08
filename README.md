@@ -1,29 +1,26 @@
-# Automate User Creation on Linux Server using Ansible
-
+# Deploy and Configure Nginx Web Server using Ansible
 ## Introduction
-Managing user accounts is a common administrative task for Linux servers. Manually creating and managing user accounts can become tedious, especially on multiple servers. Ansible simplifies this process by automating user creation with playbooks. This project will guide you in creating an Ansible playbook to automate user creation on a Linux server.
+Nginx is a powerful and widely used web server known for its performance and flexibility. Deploying and configuring Nginx manually on multiple servers can be time-consuming, but with Ansible, this process becomes automated and efficient. This project will teach you how to use Ansible to deploy and configure an Nginx web server on a Linux machine.
 
 ## Objectives
-* Understand the basics of Ansible and its automation capabilities.
-* Set up an Ansible environment to manage Linux servers.
-* Create an Ansible playbook to automate user creation.
-* Configure additional settings like home directory, groups, and SSH access.
-* Verify the user creation process and test access.
+* Understand how Ansible simplifies the deployment and configuration of applications.
+* Set up an Ansible environment for managing Linux servers.
+* Create and execute an Ansible playbook to install Nginx.
+* Configure a basic Nginx website using Ansible.
+* Verify the Nginx deployment.
 ## Prerequisites
-**Linux Servers:** At least one Linux server to act as the target machine and an optional control machine for Ansible.
-**Ansible Installed:** Ansible installed on the control machine. (Refer to the Ansible installation guide if you don't have Ansible already installed.)
+**Linux Servers:** At least one server to act as the target machine and an optional control machine for Ansible.
+**Ansible Installed:** Ansible installed on the control machine. (Refer to the Ansible installation guide if needed.)
 **SSH Access:** SSH access between the control machine and target servers with public key authentication.
 **Tools:** A text editor to create and edit Ansible playbooks.
 
-Estimated Time: 1-2 hours.
-
+Estimated Time: 2-3 hours.
 ## Tasks Outline
 * Install and configure Ansible on the control machine.
 * Set up an inventory file for the target Linux server.
-* Create an Ansible playbook to automate user creation.
-* Configure additional user settings like groups and SSH access.
-* Verify user creation and test login.
-
+* Create an Ansible playbook to install Nginx.
+* Configure a custom Nginx website using Ansible.
+* Verify the Nginx deployment and access the website.
 ## Project Tasks
 **Task 1** - Install and Configure Ansible
 Install Ansible on the control machine (Ubuntu example):
@@ -47,75 +44,99 @@ nano inventory.ini
 ```
 Add the target server details:
 ```
-[linux_servers]
+[web_servers]
 target ansible_host=<target-server-ip> ansible_user=<user>
 ```
-**Task 3** - Create an Ansible Playbook to Automate User Creation
-Create a playbook file for user creation:
-
+**Task 3** - Create an Ansible Playbook to Install Nginx
+Create a playbook file for installing Nginx:
 ```
-nano create_users.yml
+nano install_nginx.yml
 ```
 Add the following playbook content:
 ```
-- name: Automate user creation
-  hosts: linux_servers
+- name: Install Nginx on the server
+  hosts: web_servers
   become: yes
   tasks:
-    - name: Create a new user
-      user:
-        name: "{"{ item.username "}}"
+    - name: Install Nginx
+      apt:
+        name: nginx
         state: present
-        shell: /bin/bash
-        create_home: yes
-      with_items:
-        - {" username: \"user1\" "}
-        - {" username: \"user2\" "}
+        update_cache: yes
+
+    - name: Ensure Nginx is running
+      service:
+        name: nginx
+        state: started
+        enabled: yes
 ```
-**Task 4:** Configure Additional User Settings
-Update the playbook to include group and SSH key configuration:
+Save the file.
+
+**Task 4** - Configure a Custom Nginx Website Using Ansible
+Create a playbook for Nginx website configuration:
 ```
-- name: Automate user creation
-  hosts: linux_servers
+nano configure_nginx.yml
+```
+Add the following playbook content:
+
+```
+- name: Configure Nginx website
+  hosts: web_servers
   become: yes
   tasks:
-    - name: Create a new user with additional settings
-      user:
-        name: "{"{ item.username "}}"
-        state: present
-        shell: /bin/bash
-        create_home: yes
-        groups: "{"{ item.groups "}}"
-      with_items:
-        - {" username: \"user1\", groups: \"sudo\" "}
-        - {" username: \"user2\", groups: \"docker\" "}
+    - name: Create website root directory
+      file:
+        path: /var/www/mywebsite
+        state: directory
+        mode: '0755'
 
-    - name: Add SSH key for the users
-      authorized_key:
-        user: "{"{ item.username "}}"
-        state: present
-        key: "{"{ lookup('file', item.ssh_key) "}}"
-      with_items:
-        - {" username: \"user1\", ssh_key: \"/path/to/user1.pub\" "}
-        - {" username: \"user2\", ssh_key: \"/path/to/user2.pub\" "}
-```
-Replace /path/to/user1.pub and /path/to/user2.pub with the paths to the public SSH keys for each user.
+    - name: Deploy HTML content
+      copy:
+        content: |
+          <html>
+          <head><title>Welcome to My Website</title></head>
+          <body>
+          <h1>Hello from Nginx!</h1>
+          </body>
+          </html>
+        dest: /var/www/mywebsite/index.html
 
-**Task 5** - Verify User Creation and Test Login
-Run the playbook to create users:
+    - name: Configure Nginx server block
+      copy:
+        content: |
+          server {"\n                 listen 80;\n                 server_name _;\n                 root /var/www/mywebsite;\n                 index index.html;\n                 location / {\n                     try_files $uri $uri/ =404;\n                 "}
+          }
+        dest: /etc/nginx/sites-available/mywebsite
+
+    - name: Enable the Nginx server block
+      file:
+        src: /etc/nginx/sites-available/mywebsite
+        dest: /etc/nginx/sites-enabled/mywebsite
+        state: link
+
+    - name: Remove default Nginx server block
+      file:
+        path: /etc/nginx/sites-enabled/default
+        state: absent
+
+    - name: Reload Nginx
+      service:
+        name: nginx
+        state: reloaded
 ```
-ansible-playbook -i inventory.ini create_users.yml
+**Task 5** - Verify the Nginx Deployment
+Run the playbooks to install and configure Nginx:
+
+
 ```
-Verify the users were created on the target server:
+ansible-playbook -i inventory.ini install_nginx.yml
+ansible-playbook -i inventory.ini configure_nginx.yml
 ```
-cat /etc/passwd
-ls /home
+Verify Nginx is running on the target server:
 ```
-Test SSH access for the newly created users:
+curl http://<target-server-ip>
 ```
-ssh user1@<target-server-ip>
-ssh user2@<target-server-ip>
-```
+Open the target server's IP address in a web browser to access the custom website.
 
 ### Conclusion
-In this project, you automated the creation of user accounts on a Linux server using Ansible. You learned how to write an Ansible playbook for user creation, configure additional settings like groups and SSH access, and verify the process. With these skills, you can manage user accounts efficiently across multiple servers and extend the playbook for advanced configurations like password policies and user deletion.
+In this project, you used Ansible to automate the deployment and configuration of the Nginx web server on a Linux machine. You created reusable playbooks for installing Nginx and deploying a custom website. With these skills, you 
