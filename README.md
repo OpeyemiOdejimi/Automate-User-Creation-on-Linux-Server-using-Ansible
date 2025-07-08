@@ -1,109 +1,115 @@
-# Monitor Linux Server using Prometheus Node Exporter
+# Setup Prometheus Node Exporter on Kubernetes
 
 ## Introduction
-Monitoring a Linux server is essential for ensuring system health and performance. Prometheus Node Exporter is a powerful tool that collects hardware and operating system metrics, providing deep insights into your server's state per time. This project will guide you through installing and configuring Prometheus Node Exporter on a Linux server and monitoring it with Prometheus.
+Prometheus is a widely-used monitoring system that collects and processes metrics from various sources. The Node Exporter is a Prometheus exporter that collects hardware and operating system metrics from a system. By deploying Node Exporter on Kubernetes, you can monitor the nodes in your Kubernetes cluster and gain insights into their performance.
 
 ## Objectives
-* Install and configure Prometheus Node Exporter on a Linux server.
-* Integrate Node Exporter with Prometheus for metric collection.
-* Explore system metrics collected by Node Exporter.
-* Set up basic queries in Prometheus for real-time monitoring.
-* Optionally configure alerts for key metrics.
+* Understand the purpose of Prometheus Node Exporter.
+* Deploy Node Exporter as a DaemonSet in a Kubernetes cluster.
+* Configure Prometheus to scrape metrics from Node Exporter.
+* Visualize metrics using Prometheus UI.
+* Explore metrics available through Node Exporter.
 ## Prerequisites
-**Linux Server:** A running Linux server with sudo privileges.
-**Prometheus Instance:** A working Prometheus setup (local or remote).
-**Network Access:** Ensure Prometheus can connect to the Linux server on port 9100.
-**Tools:** Terminal access to the Linux server, Prometheus UI access, and a text editor for authoring configuration files.
+**Kubernetes Cluster:** A working Kubernetes cluster (e.g., Minikube, Kind, or a managed kubernetes service like EKS or AKS or GKE).
+**Kubernetes CLI:** kubectl installed and configured for your cluster.
+**Prometheus Setup:** Basic Prometheus installation running in the Kubernetes cluster.
+**Tools:** A text editor to modify YAML files.
 
 Estimated Time
-1-2 hours
+2-4 hours.
 
 ## Tasks Outline
-* Install Prometheus Node Exporter on the Linux server.
-* Start and enable Node Exporter as a service.
+* Understand how Node Exporter works and its purpose.
+* Deploy Node Exporter as a DaemonSet.
 * Configure Prometheus to scrape metrics from Node Exporter.
-* Verify and query Node Exporter metrics in Prometheus.
-* Explore and analyze the collected metrics on the Prometheus UI.
+* Verify the metrics in Prometheus.
+* Explore the metrics provided by Node Exporter.
 ## Project Tasks
-**Task 1** - Install Prometheus Node Exporter
-Download the latest Node Exporter binary from the Prometheus GitHub releases page:
+**Task 1 - Understand How Node Exporter Works**
+1. Node Exporter is a lightweight application that runs on a node and exposes metrics about the node’s hardware and operating system.
+2. Key metrics include:
+* CPU and memory usage
+* Disk I/O
+* Network statistics
+* Filesystem usage
+3. Node Exporter runs as a containerized application in Kubernetes to collect metrics from each node.
+**Task 2 - Deploy Node Exporter as a DaemonSet**
+1. Create a YAML file for the Node Exporter DaemonSet:
 ```
-curl -LO https://github.com/prometheus/node_exporter/releases/latest/download/node_exporter-linux-amd64.tar.gz
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: node-exporter
+  namespace: monitoring
+spec:
+  selector:
+    matchLabels:
+      app: node-exporter
+  template:
+    metadata:
+      labels:
+        app: node-exporter
+    spec:
+      containers:
+        - name: node-exporter
+          image: prom/node-exporter:latest
+          ports:
+            - containerPort: 9100
+              name: metrics
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+          resources:
+            limits:
+              memory: "100Mi"
+              cpu: "100m"
+            requests:
+              memory: "50Mi"
+              cpu: "50m"
 ```
-Extract the downloaded tarball:
-```
-tar -xvf node_exporter-linux-amd64.tar.gz
-```
-Move the binary to a directory in your PATH:
-```
-sudo mv node_exporter-linux-amd64/node_exporter /usr/local/bin/
-```
-**Task 2** - Start and Enable Node Exporter as a Service
-Create a systemd service file for Node Exporter by running the command below:
-```
-sudo nano /etc/systemd/system/node_exporter.service
-```
-Add the following content to the file:
-```
-[Unit]
-Description=Prometheus Node Exporter
-After=network.target
+2. Apply the YAML file using kubectl:
 
-[Service]
-User=nobody
-ExecStart=/usr/local/bin/node_exporter
-Restart=always
 
-[Install]
-WantedBy=multi-user.target
 ```
-Reload systemd and start the Node Exporter service using the following commands:
+kubectl apply -f node-exporter-daemonset.yaml
 ```
-sudo systemctl daemon-reload
-sudo systemctl start node_exporter
-sudo systemctl enable node_exporter
+2. Verify the deployment:
 ```
-Verify that Node Exporter is running with this command:
+kubectl get daemonset -n monitoring
 ```
-sudo systemctl status node_exporter
-```
-Confirm Node Exporter is accessible by visiting http://<your-server-ip>:9100/metrics in a web browser. If you are using your computer, <your-server-ip> is localhost
-
-**Task 3** - Configure Prometheus to Scrape Metrics from Node Exporter
-Open the Prometheus configuration file (prometheus.yml):
-```
-sudo nano /etc/prometheus/prometheus.yml
-```
-Add a new scrape job for Node Exporter:
-
+**Task 3 - Configure Prometheus to Scrape Metrics from Node Exporter**
+1. Edit the Prometheus configuration to add a scrape job for Node Exporter:
 ```
 scrape_configs:
   - job_name: 'node-exporter'
-    static_configs:
-      - targets: ['<your-server-ip>:9100']
+    kubernetes_sd_configs:
+      - role: endpoints
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_service_label_app]
+        action: keep
+        regex: node-exporter
 ```
-Save the file and restart Prometheus to apply the changes:
+2. Apply the updated Prometheus configuration.
+
+3. Restart the Prometheus deployment to load the new configuration.
+
+**Task 4 - Verify Metrics in Prometheus**
+1. Access the Prometheus UI (e.g., by port-forwarding):
 ```
-sudo systemctl restart prometheus
+kubectl port-forward svc/prometheus 9090:9090 -n monitoring
 ```
-**Task 4** - Verify and Query Node Exporter Metrics in Prometheus
-1. Access the Prometheus web interface (e.g., http://<prometheus-server-ip>:9090).
+2. In the Prometheus UI, run a query to view Node Exporter metrics:
 
-2. Run a test query to verify Node Exporter metrics:
+* Example: node_cpu_seconds_total
+3. Ensure metrics are being collected for all cluster nodes.
 
-* Example: node_cpu_seconds_total to view CPU usage.
-3. Check the "Targets" page in Prometheus to confirm the Node Exporter target is listed and "UP."
-
-**Task 5** - Explore and Analyze Metrics
-1. Use the Prometheus query interface to explore key Node Exporter metrics:
-
-* node_memory_MemAvailable_bytes for Available Memory.
-* node_filesystem_avail_bytes for Available Disk Space.
-* node_network_receive_bytes_total: Network Bytes Received.
-2. Create basic time-series graphs using Prometheus expressions (PromQL):
-
-* Example: rate(node_cpu_seconds_total[5m]) to analyze CPU usage over the last 5 minutes.
-3. Optionally, set up alert rules for critical metrics like high CPU usage or low disk space.
-
+**Task 5 - Explore Metrics Provided by Node Exporter**
+1. List and understand key metrics:
+* node_memory_MemAvailable_bytes: Available memory on the node.
+* node_filesystem_avail_bytes: Free space on filesystems.
+* node_network_receive_bytes_total: Total network bytes received.
+2. Use Prometheus expressions to analyze data, e.g.,:
+* `rate(node_network_receive_bytes_total[5m])`
+3. Optionally, set up alerts for critical metrics in Prometheus.
 ## Conclusion
-In this project, you installed and configured Prometheus Node Exporter on a Linux server, integrated it with Prometheus, and explored collected metrics. These skills provide a strong foundation for monitoring server health and performance, and you can now extend this setup by adding advanced visualization tool like Grafana.
+By completing this project, you’ve set up Prometheus Node Exporter on Kubernetes, enabling comprehensive monitoring of node-level metrics. You’ve also integrated Node Exporter with Prometheus, learned to query metrics, and explored the data it provides. This setup can now be extended with dashboards (e.g., Grafana) or alerts for advanced monitoring needs.
