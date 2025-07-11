@@ -1,115 +1,100 @@
-# Setup Prometheus Node Exporter on Kubernetes
-
-## Introduction
-Prometheus is a widely-used monitoring system that collects and processes metrics from various sources. The Node Exporter is a Prometheus exporter that collects hardware and operating system metrics from a system. By deploying Node Exporter on Kubernetes, you can monitor the nodes in your Kubernetes cluster and gain insights into their performance.
+# Configuring Uptime Monitoring using Gatus
+Ensuring that your services and websites are available and performing as expected is crucial for maintaining user satisfaction and trust. Gatus is a simple yet powerful tool for monitoring the uptime of services and websites. This project will guide you through setting up Gatus to monitor the availability of a website or API endpoint and receive alerts when it becomes unavailable.
 
 ## Objectives
-* Understand the purpose of Prometheus Node Exporter.
-* Deploy Node Exporter as a DaemonSet in a Kubernetes cluster.
-* Configure Prometheus to scrape metrics from Node Exporter.
-* Visualize metrics using Prometheus UI.
-* Explore metrics available through Node Exporter.
+* Understand what Gatus is and its role in uptime monitoring.
+* Set up Gatus on your local machine or server.
+* Configure Gatus to monitor one or more endpoints.
+* Set up alerting for downtime events.
+* Visualize monitoring results through the Gatus dashboard.
 ## Prerequisites
-**Kubernetes Cluster:** A working Kubernetes cluster (e.g., Minikube, Kind, or a managed kubernetes service like EKS or AKS or GKE).
-**Kubernetes CLI:** kubectl installed and configured for your cluster.
-**Prometheus Setup:** Basic Prometheus installation running in the Kubernetes cluster.
-**Tools:** A text editor to modify YAML files.
+* Basic Knowledge: Familiarity with HTTP services, APIs, and configuration files (YAML).
+* Tools Required:
+* A machine with Docker installed (recommended for ease of setup).
+* A text editor for editing configuration files.
+* Internet access for testing live endpoints.
 
 Estimated Time
-2-4 hours.
+1-2 hours
 
 ## Tasks Outline
-* Understand how Node Exporter works and its purpose.
-* Deploy Node Exporter as a DaemonSet.
-* Configure Prometheus to scrape metrics from Node Exporter.
-* Verify the metrics in Prometheus.
-* Explore the metrics provided by Node Exporter.
+* Install and set up Gatus locally.
+* Create a basic configuration file to monitor endpoints.
+* Test the Gatus setup with live endpoints.
+* Configure alerts for downtime using Slack, email, or another notification method.
+* Explore and customize the Gatus dashboard.
 ## Project Tasks
-**Task 1 - Understand How Node Exporter Works**
-1. Node Exporter is a lightweight application that runs on a node and exposes metrics about the node’s hardware and operating system.
-2. Key metrics include:
-* CPU and memory usage
-* Disk I/O
-* Network statistics
-* Filesystem usage
-3. Node Exporter runs as a containerized application in Kubernetes to collect metrics from each node.
-**Task 2 - Deploy Node Exporter as a DaemonSet**
-1. Create a YAML file for the Node Exporter DaemonSet:
-```
-apiVersion: apps/v1
-kind: DaemonSet
-metadata:
-  name: node-exporter
-  namespace: monitoring
-spec:
-  selector:
-    matchLabels:
-      app: node-exporter
-  template:
-    metadata:
-      labels:
-        app: node-exporter
-    spec:
-      containers:
-        - name: node-exporter
-          image: prom/node-exporter:latest
-          ports:
-            - containerPort: 9100
-              name: metrics
-          securityContext:
-            runAsNonRoot: true
-            allowPrivilegeEscalation: false
-          resources:
-            limits:
-              memory: "100Mi"
-              cpu: "100m"
-            requests:
-              memory: "50Mi"
-              cpu: "50m"
-```
-2. Apply the YAML file using kubectl:
+**Task 1 - Install and Set Up Gatus Locally**
+1. Install Docker if it’s not already installed:
 
+* Follow the official Docker installation guide.
+2. Pull the Gatus Docker image:
+```
+docker pull twinproduction/gatus
+```
+3. Create a directory for Gatus configuration:
+```
+mkdir gatus && cd gatus
+```
+4. Start Gatus using Docker with a basic setup:
+```
+docker run -d -p 8080:8080 --name gatus -v $(pwd)/config:/config twinproduction/gatus
+```
+5. Access the Gatus dashboard in your browser at http://localhost:8080.
+
+**Task 2 - Create a Basic Configuration File**
+1. Inside the gatus/config directory, create a config.yaml file.
+
+2. Add a simple configuration to monitor a website:
+```
+endpoints:
+  - name: Example Website
+    url: "https://example.com"
+    interval: 60s
+    conditions:
+      - "[STATUS] == 200"
+```
+3. Restart the Gatus container to apply the configuration:
+```
+docker restart gatus
+```
+**Task 3 - Test the Setup with Live Endpoints**
+1. Add another endpoint to the config.yaml file for monitoring:
+```
+- name: GitHub
+  url: "https://github.com"
+  interval: 60s
+  conditions:
+    - "[STATUS] == 200"
+```
+2. Restart Gatus and verify the new endpoint appears on the dashboard.
+
+3. Simulate a failure by adding a non-existent endpoint and observe the behavior:
 
 ```
-kubectl apply -f node-exporter-daemonset.yaml
+- name: Nonexistent
+  url: "https://thiswebsitedoesnotexist.com"
+  interval: 60s
+  conditions:
+    - "[STATUS] == 200"
 ```
-2. Verify the deployment:
-```
-kubectl get daemonset -n monitoring
-```
-**Task 3 - Configure Prometheus to Scrape Metrics from Node Exporter**
-1. Edit the Prometheus configuration to add a scrape job for Node Exporter:
-```
-scrape_configs:
-  - job_name: 'node-exporter'
-    kubernetes_sd_configs:
-      - role: endpoints
-    relabel_configs:
-      - source_labels: [__meta_kubernetes_service_label_app]
-        action: keep
-        regex: node-exporter
-```
-2. Apply the updated Prometheus configuration.
+**Task 4 - Configure Alerts for Downtime**
+1. Choose an alerting method, such as Slack or email. For example, for Slack:
 
-3. Restart the Prometheus deployment to load the new configuration.
-
-**Task 4 - Verify Metrics in Prometheus**
-1. Access the Prometheus UI (e.g., by port-forwarding):
+* Create a Slack webhook URL in your workspace.
+2. Add an alert configuration to config.yaml:
 ```
-kubectl port-forward svc/prometheus 9090:9090 -n monitoring
+alerts:
+  - type: slack
+    url: "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+    failure-threshold: 2
+    success-threshold: 2
 ```
-2. In the Prometheus UI, run a query to view Node Exporter metrics:
+3. Test the alerting by taking down a monitored service temporarily.
 
-* Example: node_cpu_seconds_total
-3. Ensure metrics are being collected for all cluster nodes.
-
-**Task 5 - Explore Metrics Provided by Node Exporter**
-1. List and understand key metrics:
-* node_memory_MemAvailable_bytes: Available memory on the node.
-* node_filesystem_avail_bytes: Free space on filesystems.
-* node_network_receive_bytes_total: Total network bytes received.
-2. Use Prometheus expressions to analyze data, e.g.,:
-* `rate(node_network_receive_bytes_total[5m])`
-3. Optionally, set up alerts for critical metrics in Prometheus.
+**Task 5 - Explore and Customize the Gatus Dashboard**
+1. Access the Gatus dashboard to view uptime statistics for each endpoint.
+2. Customize the dashboard appearance (e.g., themes, logos) by modifying the configuration file.
+3. Adjust monitoring intervals and conditions to optimize performance.
 ## Conclusion
-By completing this project, you’ve set up Prometheus Node Exporter on Kubernetes, enabling comprehensive monitoring of node-level metrics. You’ve also integrated Node Exporter with Prometheus, learned to query metrics, and explored the data it provides. This setup can now be extended with dashboards (e.g., Grafana) or alerts for advanced monitoring needs.
+In this project, you learned how to set up and configure Gatus for monitoring uptime and performance of services and websites. You explored essential features like endpoint monitoring, alerting, and dashboard visualization. With this knowledge, you can expand your configuration to monitor multiple services, integrate with advanced alerting tools, and deploy Gatus in production environments.
